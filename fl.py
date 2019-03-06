@@ -24,7 +24,8 @@ def calculate_hash(filename, email, url, blocksize=128):
                 break
             m.update(buf)
     text_for_sent = 'adress file={}, calculated hash md5={}'.format(url, m.hexdigest())
-    send_email(to_addr=email, body_text=text_for_sent)
+    if email is not None:
+        send_email(to_addr=email, body_text=text_for_sent)
     return m.hexdigest()
 
 def download_file_and_calculate_hash(task_id, email, url = 'https://download.sublimetext.com/sublime_text_3_build_3176_x64.tar.bz2'):
@@ -94,6 +95,23 @@ def update_hash(hash, url, id):
         print(e)
         return False
 
+def get_status(id):
+    try:
+        conn = psycopg2.connect("host=%s dbname=%s user=%s password=%s" % (PG_HOST, PG_DATABASE, PG_USER, PG_PASSWORD))
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        query = """SELECT * FROM "maintable" WHERE "id"='%s'""" % id
+        cur.execute(query)
+        conn.commit()
+        items_list = [c for c in cur]
+        ext = items_list[0]
+        cur.close()
+        conn.close()
+        return ext
+    except Exception as e:
+        print(e)
+        return False
+
+
 @app.route('/submit', methods=['POST'])
 def md5_hash():
     if request.method == 'POST':
@@ -109,10 +127,8 @@ def md5_hash():
             md = Thread(target=download_file_and_calculate_hash, args=(tsk_number, email, url))
             variavle = md.start()
             return str(tsk_number)
-
         except Exception as e:
             print(e)
-
         print('excelent')
 
 @app.route('/check', methods=['GET'])
@@ -120,9 +136,15 @@ def check():
 
     if request.method == 'GET':
         try:
-            id = request.form['id']
-        except:
-            print('Error. website address is incorrect')
+            id = request.args['id']
+            tmp = get_status(id)
+            if tmp['download'] == 'NULL' or tmp['hash_sum'] == 'NULL' or tmp['url'] == 'NULL':
+                return('"status":"running"')
+            else:
+                tmp='"id":"%s", "md5":"%s", "status":"%s", "url":"%s"'%(tmp['id'],tmp['hash_sum'],tmp['download'],tmp['url'])
+                return tmp
+        except Exception as e:
+            print(e)
 
         print('excelent')
 

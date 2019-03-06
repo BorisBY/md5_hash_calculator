@@ -1,1 +1,4 @@
 wget
+psycopg2
+flask
+hashlib
